@@ -39,6 +39,12 @@
 #define RFCORE_XREG_RSSISTAT                    0x40088664  // RSSI valid status register
 #define RFCORE_XREG_RSSISTAT_RSSI_VALID         0x00000001  // RSSI value is valid.
 #define RFCORE_XREG_AGCCTRL1                    0x400886C8  // AGC reference level
+#define RFCORE_XREG_RFC_OBS_CTRL0				0x400887AC	// RF observation mux control		
+#define RFCORE_XREG_RFC_OBS_CTRL1				0x400887B0	// RF observation mux control
+#define CCTEST_OBSSEL2							0x4401001C	//Select output signal on observation output 2
+#define CCTEST_OBSSEL3							0x44010020	//Select output signal on observation output 2
+
+
 #define RFCORE_XREG_TXFILTCFG                   0x400887E8  // TX filter configuration
 #define RFCORE_XREG_RFRND                       0x4008869C  // Random data
 #define RFCORE_XREG_RFRND_IRND                  0x00000001

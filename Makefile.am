@@ -52,7 +52,7 @@ PLATFORM_SOURCES                          = \
     source/vcnl4100.c                               \
     source/ssim.c                               \
     source/udma.c                               \
-    source/ws2812b.c                               \
+    source/rgbled.c                               \
     $(NULL)
 
 libopenthread_cc2538_a_SOURCES            = \

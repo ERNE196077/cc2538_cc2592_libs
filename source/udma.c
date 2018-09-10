@@ -3,7 +3,7 @@
 #include "../include/cc2538-reg.h"
 
 
-volatile ch_ctrl_t dmactrl[64] __attribute__((aligned(1024)));
+volatile udmach_t dmactrl[64] __attribute__((aligned(1024)));
 
 void cc2538DmaInit(void)
 {
@@ -17,7 +17,7 @@ void cc2538UdmaMemMemXfer(uint32_t SOURCE, uint32_t DESTINATION,
 						 uint8_t CHANNEL,
 						 uint32_t XFER_SIZE /* Bytes */)
 {
-	volatile ch_ctrl_t *dma_ch_pri = UDMA_CH_PRIMARY(CHANNEL);
+	volatile udmach_t *dma_ch_pri = &dmactrl[CHANNEL];
 
 	/*	Set default priority	*/
 	UDMA->prioclr |= UDMA_CHANNEL(CHANNEL);

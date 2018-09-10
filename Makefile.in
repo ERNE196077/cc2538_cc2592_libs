@@ -197,7 +197,7 @@ am__objects_1 = source/libopenthread_cc2538_a-alarm.$(OBJEXT) \
 	source/libopenthread_cc2538_a-vcnl4100.$(OBJEXT) \
 	source/libopenthread_cc2538_a-ssim.$(OBJEXT) \
 	source/libopenthread_cc2538_a-udma.$(OBJEXT) \
-	source/libopenthread_cc2538_a-ws2812b.$(OBJEXT)
+	source/libopenthread_cc2538_a-rgbled.$(OBJEXT)
 am_libopenthread_cc2538_a_OBJECTS = $(am__objects_1)
 libopenthread_cc2538_a_OBJECTS = $(am_libopenthread_cc2538_a_OBJECTS)
 AM_V_P = $(am__v_P_@AM_V@)
@@ -481,7 +481,7 @@ PLATFORM_SOURCES = \
     source/vcnl4100.c                               \
     source/ssim.c                               \
     source/udma.c                               \
-    source/ws2812b.c                               \
+    source/rgbled.c                               \
     $(NULL)
 
 libopenthread_cc2538_a_SOURCES = \
@@ -599,7 +599,7 @@ source/libopenthread_cc2538_a-ssim.$(OBJEXT): source/$(am__dirstamp) \
 	source/$(DEPDIR)/$(am__dirstamp)
 source/libopenthread_cc2538_a-udma.$(OBJEXT): source/$(am__dirstamp) \
 	source/$(DEPDIR)/$(am__dirstamp)
-source/libopenthread_cc2538_a-ws2812b.$(OBJEXT):  \
+source/libopenthread_cc2538_a-rgbled.$(OBJEXT):  \
 	source/$(am__dirstamp) source/$(DEPDIR)/$(am__dirstamp)
 
 libopenthread-cc2538.a: $(libopenthread_cc2538_a_OBJECTS) $(libopenthread_cc2538_a_DEPENDENCIES) $(EXTRA_libopenthread_cc2538_a_DEPENDENCIES) 
@@ -625,11 +625,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-misc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-radio.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-random.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-rgbled.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-ssim.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-uart.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-udma.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-vcnl4100.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@source/$(DEPDIR)/libopenthread_cc2538_a-ws2812b.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -865,19 +865,19 @@ source/libopenthread_cc2538_a-udma.obj: source/udma.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o source/libopenthread_cc2538_a-udma.obj `if test -f 'source/udma.c'; then $(CYGPATH_W) 'source/udma.c'; else $(CYGPATH_W) '$(srcdir)/source/udma.c'; fi`
 
-source/libopenthread_cc2538_a-ws2812b.o: source/ws2812b.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT source/libopenthread_cc2538_a-ws2812b.o -MD -MP -MF source/$(DEPDIR)/libopenthread_cc2538_a-ws2812b.Tpo -c -o source/libopenthread_cc2538_a-ws2812b.o `test -f 'source/ws2812b.c' || echo '$(srcdir)/'`source/ws2812b.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) source/$(DEPDIR)/libopenthread_cc2538_a-ws2812b.Tpo source/$(DEPDIR)/libopenthread_cc2538_a-ws2812b.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='source/ws2812b.c' object='source/libopenthread_cc2538_a-ws2812b.o' libtool=no @AMDEPBACKSLASH@
+source/libopenthread_cc2538_a-rgbled.o: source/rgbled.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT source/libopenthread_cc2538_a-rgbled.o -MD -MP -MF source/$(DEPDIR)/libopenthread_cc2538_a-rgbled.Tpo -c -o source/libopenthread_cc2538_a-rgbled.o `test -f 'source/rgbled.c' || echo '$(srcdir)/'`source/rgbled.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) source/$(DEPDIR)/libopenthread_cc2538_a-rgbled.Tpo source/$(DEPDIR)/libopenthread_cc2538_a-rgbled.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='source/rgbled.c' object='source/libopenthread_cc2538_a-rgbled.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o source/libopenthread_cc2538_a-ws2812b.o `test -f 'source/ws2812b.c' || echo '$(srcdir)/'`source/ws2812b.c
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o source/libopenthread_cc2538_a-rgbled.o `test -f 'source/rgbled.c' || echo '$(srcdir)/'`source/rgbled.c
 
-source/libopenthread_cc2538_a-ws2812b.obj: source/ws2812b.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT source/libopenthread_cc2538_a-ws2812b.obj -MD -MP -MF source/$(DEPDIR)/libopenthread_cc2538_a-ws2812b.Tpo -c -o source/libopenthread_cc2538_a-ws2812b.obj `if test -f 'source/ws2812b.c'; then $(CYGPATH_W) 'source/ws2812b.c'; else $(CYGPATH_W) '$(srcdir)/source/ws2812b.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) source/$(DEPDIR)/libopenthread_cc2538_a-ws2812b.Tpo source/$(DEPDIR)/libopenthread_cc2538_a-ws2812b.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='source/ws2812b.c' object='source/libopenthread_cc2538_a-ws2812b.obj' libtool=no @AMDEPBACKSLASH@
+source/libopenthread_cc2538_a-rgbled.obj: source/rgbled.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT source/libopenthread_cc2538_a-rgbled.obj -MD -MP -MF source/$(DEPDIR)/libopenthread_cc2538_a-rgbled.Tpo -c -o source/libopenthread_cc2538_a-rgbled.obj `if test -f 'source/rgbled.c'; then $(CYGPATH_W) 'source/rgbled.c'; else $(CYGPATH_W) '$(srcdir)/source/rgbled.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) source/$(DEPDIR)/libopenthread_cc2538_a-rgbled.Tpo source/$(DEPDIR)/libopenthread_cc2538_a-rgbled.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='source/rgbled.c' object='source/libopenthread_cc2538_a-rgbled.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o source/libopenthread_cc2538_a-ws2812b.obj `if test -f 'source/ws2812b.c'; then $(CYGPATH_W) 'source/ws2812b.c'; else $(CYGPATH_W) '$(srcdir)/source/ws2812b.c'; fi`
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libopenthread_cc2538_a_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o source/libopenthread_cc2538_a-rgbled.obj `if test -f 'source/rgbled.c'; then $(CYGPATH_W) 'source/rgbled.c'; else $(CYGPATH_W) '$(srcdir)/source/rgbled.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

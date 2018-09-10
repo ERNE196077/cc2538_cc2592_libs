@@ -73,9 +73,10 @@ typedef struct
 #define SSI0 										((volatile ssi_t *)(SSI0_BASE))
 #define SSI1 										((volatile ssi_t *)(SSI1_BASE))
 
-void cc2538SsimInit(volatile ssi_t *SSI);
-void cc2538SsimEnable(volatile ssi_t *SSI);
-void cc2538SsimWrite(volatile ssi_t *SSI, uint16_t VALUE);
-uint16_t cc2538SsimRead(volatile ssi_t *SSI);
+void cc2538SSIMInit(volatile ssi_t *ssi, uint32_t frequency, uint32_t cr0, 
+					uint32_t cr1, uint32_t im, uint32_t dmactl);
+void cc2538SSImEnable(volatile ssi_t *SSI);
+void cc2538SSImWrite(volatile ssi_t *SSI, uint16_t VALUE);
+uint16_t cc2538SSImRead(volatile ssi_t *SSI);
 
 #endif

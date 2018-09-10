@@ -95,13 +95,10 @@ typedef struct
 	#define UDMA_CHCTL_XFERMODE_PER_SG					(0x6)
 	#define UDMA_CHCTL_XFERMODE_PER_SGA					(0x7)
 	uint32_t reserved;
-} ch_ctrl_t;
+} udmach_t;
 
 
 #define UDMA 											((volatile udma_t *)(UDMA_BASE))
-#define UDMA_CTRL_TABLE_ADDR							0x0027B000
-#define UDMA_CH_PRIMARY(CHANNEL)						((volatile ch_ctrl_t *)(((UDMA_CTRL_TABLE_ADDR) + (CHANNEL * sizeof(ch_ctrl_t)))))
-#define UDMA_CH_ALTERNATE(CHANNEL)						((volatile ch_ctrl_t *)(((UDMA_CTRL_TABLE_ADDR + 0x200)) + (CHANNEL * sizeof(ch_ctrl_t))))
 
 void cc2538DmaInit(void);
 void cc2538UdmaMemMemXfer(uint32_t SOURCE, uint32_t DESTINATION, 

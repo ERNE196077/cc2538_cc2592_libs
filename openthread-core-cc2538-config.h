@@ -85,4 +85,10 @@
  */
 #define SETTINGS_CONFIG_PAGE_SIZE                              2048
 
+
+/** 
+* @def Uncomment when using CC2538 along with CC2592 RF power extender
+*/
+#define SETTINGS_CONFIG_RADIO_CC2592						
+
 #endif  // OPENTHREAD_CORE_CC2538_CONFIG_H_

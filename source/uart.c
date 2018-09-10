@@ -298,15 +298,15 @@ void cc2538DebugUartInit(void)
     // http://www.ti.com/tool/cc2538dk
     // PA3 => is jumper position RF1.14
     // To use these, you will require a "flying-lead" UART adapter
-    IOCMUX->ioc_pa3_sel = IOC_MUX_OUT_SEL_UART1_TXD;
-    IOCMUX->ioc_pa3_over = IOC_OVERRIDE_OE;
-    GPIO_A->afsel |= GPIO_PIN_3;
+    IOCMUX->ioc_pa7_sel = IOC_MUX_OUT_SEL_UART1_TXD;
+    IOCMUX->ioc_pa7_over = IOC_OVERRIDE_OE;
+    GPIO_A->afsel |= GPIO_PIN_7;
     
     // UART1 - rx pin we don't really use but we setup anyway
     // PA2 => is jumper position RF1.16
-    IOCMUX->ioc_uartrxd_uart1 = IOC_PA2;
-    IOCMUX->ioc_pa2_over = IOC_OVERRIDE_DIS;
-    GPIO_A->afsel |= GPIO_PIN_2;
+    IOCMUX->ioc_uartrxd_uart1 = IOC_PA6;
+    IOCMUX->ioc_pa6_over = IOC_OVERRIDE_DIS;
+    GPIO_A->afsel |= GPIO_PIN_6;
 
     //HWREG(UART1_BASE + UART_O_CC) = 0;
 

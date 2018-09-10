@@ -44,6 +44,7 @@
 #include "../include/radio.h"
 #include "common/logging.hpp"
 #include "utils/code_utils.h"
+#include "../include/gpio.h"
 
 enum
 {
@@ -258,6 +259,16 @@ void cc2538RadioInit(void)
 
     // default: SRCMATCH.SRC_MATCH_EN(1), SRCMATCH.AUTOPEND(1),
     // SRCMATCH.PEND_DATAREQ_ONLY(1), RFCORE_XREG_FRMCTRL1_PENDING_OR(0)
+    //#ifdef SETTINGS_CONFIG_RADIO_CC2592
+        // HWREG(CCTEST_OBSSEL2) = 0x80; 
+         HWREG(CCTEST_OBSSEL3) = 0x81;
+        // HWREG(RFCORE_XREG_RFC_OBS_CTRL0) = 0x6A;
+         HWREG(RFCORE_XREG_RFC_OBS_CTRL1) = 0x68;
+        
+        // GPIO_SET_ASGPIO(GPIO_D, GPIO_PIN_2);
+        // GPIO_SET_OUTPUT(GPIO_D, GPIO_PIN_2);
+        // GPIO_D->data |= GPIO_PIN_2;
+    //#endif
 
     HWREG(RFCORE_XREG_TXPOWER) = sTxPowerTable[0].mTxPowerReg;
     sTxPower                   = sTxPowerTable[0].mTxPowerVal;
