@@ -36,7 +36,6 @@
 #include <stdint.h>
 
 #include <openthread/config.h>
-#include <openthread/openthread.h>
 #include <openthread/platform/alarm-milli.h>
 #include <openthread/platform/diag.h>
 
@@ -126,13 +125,4 @@ void cc2538AlarmProcess(otInstance *aInstance)
 void SysTick_Handler()
 {
     sCounter++;
-}
-
-
-
-void us_delay(uint32_t delayTicks)
-{
-    uint32_t currentTicks;
-    currentTicks = sCounter;
-    while ((sCounter-currentTicks) < delayTicks);
 }

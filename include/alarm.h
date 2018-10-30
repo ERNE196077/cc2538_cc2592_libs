@@ -8,6 +8,4 @@
 #define NVIC_ST_CTRL_INTEN                      0x00000002  // Interrupt Enable
 #define NVIC_ST_CTRL_ENABLE                     0x00000001  // Enable
 
-void us_delay(uint32_t delayTicks);
-
 #endif

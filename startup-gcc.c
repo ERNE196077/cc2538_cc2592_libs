@@ -142,7 +142,7 @@ __attribute__((section(".vectors"), used)) void (*const vectors[])(void) = {
     IntDefaultHandler,                                      // 47 PKA
     IntDefaultHandler,                                      // 48 Sleep Timer
     IntDefaultHandler,                                      // 49 MacTimer
-    IntDefaultHandler,                                      // 50 SSI1 Rx and Tx
+    SSI1IntHandler,                                      // 50 SSI1 Rx and Tx
     GPTIMER3AIntHandler,                                    // 51 Timer 3 subtimer A
     IntDefaultHandler,                                    // 52 Timer 3 subtimer B
     0,                                                      // 53 Reserved
@@ -173,7 +173,7 @@ void IntDefaultHandler(void)
 #define FLASH_CCA_BOOTLDR_CFG_PORT_A_PIN_S          24         ///< Selected pin on pad A shift
 #define FLASH_CCA_IMAGE_VALID                       0x00000000 ///< Indicates valid image in flash
 
-#define FLASH_CCA_CONF_BOOTLDR_BACKDOOR_PORT_A_PIN  7      ///< Select Button for cc2538 dev board by JelmerT
+#define FLASH_CCA_CONF_BOOTLDR_BACKDOOR_PORT_A_PIN  2      ///< Select Button for cc2538 dev board by JelmerT
 
 // clang-format on
 

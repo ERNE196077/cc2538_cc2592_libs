@@ -12,19 +12,6 @@
 	#include <openthread/platform/debug_uart.h>
 #endif
 
-volatile uint8_t us = 0;
-
-extern void GPTIMER3AIntHandler(void);
-
-void GPTIMER3AIntHandler(void)
-{
-    cc2538GPTimerStopNVIC(GPTIMER3, A);
-    GPTIMER3->icr |= GPTIMER_ICR_TATOCINT_TIMEOUTINT;
-    us = 1;
-    cc2538GPTimerStartNVIC(GPTIMER3, A);
-}
-
-
 
 void cc2538GPTimerStartClock(volatile gptimer_t *GPTIMER)
 {
@@ -443,36 +430,3 @@ void cc2538GPTimerPWMSetDutyPeriod(volatile gptimer_t *GPTIMER, gptimer_side_t S
 	*txpmr = (uint32_t)((duty >> 16) & 0xFF);
 }
 
-
-void cc2538UsleepInit(void)
-{
-	if (GPTIMER3->ctl & (GPTIMER_CTL_TBEN_TIMERENABLE | GPTIMER_CTL_TAEN_TIMERENABLE))
-	{	
-		#if OPENTHREAD_CONFIG_ENABLE_DEBUG_UART
-		otPlatDebugUart_printf("gptimer.c:cc2538UsleepInit:ERROR:GPTimer already in use, not configuring.\n\r");
-		#endif
-		return;
-	}
-	
-	cc2538GPTimerStartClock(GPTIMER3);
-    GPTIMER3->ctl &= ~(GPTIMER_CTL_TBEN_TIMERENABLE | GPTIMER_CTL_TAEN_TIMERENABLE);
-	GPTIMER3->cfg = 0x0;
-	GPTIMER3->cfg |= GPTIMER_CFG_GPTMCFG_32BIT;
-	GPTIMER3->tamr |= GPTIMER_TxMR_TxCDIR_COUNTDOWN |
-					 GPTIMER_TxMR_TxMR_ONESHOT;
-	otCliUartOutputFormat("uslep init\n\r");
-}
-
-void cc2538Usleep(uint16_t usec)
-{
-	uint64_t count = (SYS_CTRL_SYSCLOCKFREQ * usec) / 1000000;
-	
-	GPTIMER3->tailr = (uint32_t)(count & 0xFFFFFFFF);
-	GPTIMER3->imr |= GPTIMER_IMR_TATOIM_TIMEOUTINTMASKENABLE;
-	cc2538GPTimerStartNVIC(GPTIMER3, A);
-	GPTIMER3->ctl |= GPTIMER_CTL_TAEN_TIMERENABLE; 
-	while (!us)
-		if(us > 0)
-			break;
-	us = 0;
-}

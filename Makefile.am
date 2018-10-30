@@ -41,7 +41,7 @@ PLATFORM_SOURCES                          = \
     source/diag.c                                  \
     source/flash.c                                 \
     source/misc.c                                  \
-    platform.c                              \
+    system.c                              \
     source/radio.c                                 \
     source/random.c                                \
     startup-gcc.c                           \
@@ -49,10 +49,11 @@ PLATFORM_SOURCES                          = \
     source/uart.c                                  \
     source/gptimer.c                               \
     source/i2c.c                               \
-    source/vcnl4100.c                               \
     source/ssim.c                               \
-    source/udma.c                               \
     source/rgbled.c                               \
+    source/udma.c                               \
+    source/vcnl4100.c                               \
+    source/rgbled_coap.c                               \
     $(NULL)
 
 libopenthread_cc2538_a_SOURCES            = \

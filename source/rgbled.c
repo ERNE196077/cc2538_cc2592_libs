@@ -15,18 +15,6 @@
 #define SSI1_RX_UDMACH		24
 #define SSI1_TX_UDMACH		25
 
-#define SSI0_PIN_OUT_CLK	IOCMUX->ioc_pa2_sel = IOC_MUX_OUT_SEL_SSI0_CLK_OUT; IOCMUX->ioc_pa2_over = IOC_OVERRIDE_OE  
-#define SSI0_PIN_OUT_TXD	IOCMUX->ioc_pa4_sel = IOC_MUX_OUT_SEL_SSI0_TXD; IOCMUX->ioc_pa4_over = IOC_OVERRIDE_OE 
-#define SSI0_PIN_OUT_FSS	IOCMUX->ioc_pa3_sel = IOC_MUX_OUT_SEL_SSI0_FSS_OUT; IOCMUX->ioc_pa3_over = IOC_OVERRIDE_OE  
-#define SSI0_PIN_IN_RXD		IOCMUX->ioc_ssirxd_ssi0 = IOC_PA5; IOCMUX->ioc_pa5_over = IOC_OVERRIDE_DIS; 
-#define SSI0_PINS_AFSEL 	GPIO_A->afsel |= (GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5)
-
-#define SSI1_PIN_OUT_CLK	IOCMUX->ioc_pd0_sel = IOC_MUX_OUT_SEL_SSI0_CLK_OUT; IOCMUX->ioc_pd0_over = IOC_OVERRIDE_OE  
-#define SSI1_PIN_OUT_TXD	IOCMUX->ioc_pd1_sel = IOC_MUX_OUT_SEL_SSI0_TXD; IOCMUX->ioc_pd1_over = IOC_OVERRIDE_OE 
-#define SSI1_PIN_OUT_FSS	IOCMUX->ioc_pd2_sel = IOC_MUX_OUT_SEL_SSI0_FSS_OUT; IOCMUX->ioc_pd2_over = IOC_OVERRIDE_OE  
-#define SSI1_PIN_IN_RXD		IOCMUX->ioc_ssirxd_ssi1 = IOC_PD3; IOCMUX->ioc_pd3_over = IOC_OVERRIDE_DIS; 
-#define SSI1_PINS_AFSEL 	GPIO_D->afsel |= (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3)
-
 
 
 uint16_t dummy_buf;
@@ -40,336 +28,547 @@ static rgbdev_t ssi1_rgbdev;
 extern void SSI0IntHandler(void);
 extern void SSI1IntHandler(void);
 
-void SSI0IntHandler(void)
-{ 	
-	rgbdev_t *rgbdev = &ssi0_rgbdev;
-	NVIC_DISABLE(rgbdev->ssiint);
-	
-	if (SSI0->mis & SSI_MIS_RXMIS_FIFOHALFEMPTY){
-		UDMA->chis |= UDMA_CHANNEL(SSI0_RX_UDMACH);
-		UDMA->enaset |= UDMA_CHANNEL(SSI0_RX_UDMACH);
-	}
 
-	if((rgbdev->dma_rxpri->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
-	{	
-		rgbdev->dma_rxpri->control = rgbdev->dma_rxchcfg;
-	}
+static void ws2812bconv(rgbdev_t *rgbdev)
+{
+	uint32_t leddatanum = rgbdev->config.xfertype == XFERTYPE_BUFFER ?
+							rgbdev->config.lednum:
+							1;
+	led_t *leds = (led_t *)(rgbdev->leds);
+	ws2812bpixel_t *data = (ws2812bpixel_t *)(rgbdev->control.dataptr);
+	leddata_t *wsled = NULL;
+	ws2812b_t *wsdata = NULL;	
 
-	if((rgbdev->dma_rxalt->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
-	{	
-		rgbdev->dma_rxpri->control = rgbdev->dma_rxchcfg;
-	}
-
-	if(rgbdev->xfertype == XFER_SINGLE)
+	uint c;
+	for(c = 0 ; c < leddatanum ; c++)
 	{
-		if(!rgbdev->xfercomplete)
+		wsled = (leddata_t *)leds;		
+		wsdata = (ws2812b_t *)data;
+		
+		wsdata->r7 = wsled->r0;
+		wsdata->r6 = wsled->r1;
+		wsdata->r5 = wsled->r2;	
+		wsdata->r4 = wsled->r3;
+		wsdata->r3 = wsled->r4;
+		wsdata->r2 = wsled->r5;
+		wsdata->r1 = wsled->r6;
+		wsdata->r0 = wsled->r7;
+		wsdata->g7 = wsled->g0;
+		wsdata->g6 = wsled->g1;
+		wsdata->g5 = wsled->g2;
+		wsdata->g4 = wsled->g3;
+		wsdata->g3 = wsled->g4;
+		wsdata->g2 = wsled->g5;
+		wsdata->g1 = wsled->g6;
+		wsdata->g0 = wsled->g7;
+		wsdata->b7 = wsled->b0;
+		wsdata->b6 = wsled->b1;
+		wsdata->b5 = wsled->b2;
+		wsdata->b4 = wsled->b3;
+		wsdata->b3 = wsled->b4;
+		wsdata->b2 = wsled->b5;
+		wsdata->b1 = wsled->b6;
+		wsdata->b0 = wsled->b7;
+		
+		leds++;
+		data++;
+	} 
+}
+
+static void IntHandler(rgbdev_t *rgbdev)
+{
+	rgbledctrl_t *control = &(rgbdev->control);
+	rgbledcfg_t *config =  &(rgbdev->config);
+	volatile udmach_t *dma_txpri = control->dma_txpri;
+	volatile udmach_t *dma_txalt = control->dma_txalt;
+	volatile udmach_t *dma_rxpri = control->dma_rxpri;
+	volatile udmach_t *dma_rxalt = control->dma_rxalt;
+	NVIC_DISABLE(control->ssiint);
+	control->counter++;
+	
+	if (control->ssi->mis & SSI_MIS_RXMIS_FIFOHALFEMPTY){
+		UDMA->chis |= UDMA_CHANNEL(control->dma_rxch);
+		UDMA->enaset |= UDMA_CHANNEL(control->dma_rxch);
+	}
+
+	if((dma_rxpri->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
+	{	
+		dma_rxpri->control = control->dma_rxchcfg;
+	}
+
+	if((dma_rxalt->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
+	{	
+		dma_rxalt->control = control->dma_rxchcfg;
+	}
+	
+
+	if(config->xfertype == XFERTYPE_SINGLE)
+	{
+		if((dma_txpri->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
 		{
-			if((rgbdev->dma_txpri->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
+			if(!control->xfercomplete)
 			{
-				switch(rgbdev->numled - rgbdev->xfer_c)
+				switch(config->lednum - control->xfer_c)
 				{
 					default:
-						rgbdev->dma_txpri->source = (uint32_t)(rgbdev->dataptr) + (rgbdev->xferbs - 1);
-						rgbdev->dma_txpri->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE(rgbdev->xferbs);
-						rgbdev->xfer_c++;
+						dma_txpri->source = (uint32_t)(control->dataptr) + (control->xferbs - 1);
+						dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
+						control->xfer_c++;
 						break;
 					case 1:
-						rgbdev->xfercomplete++;
+						control->xfercomplete++;
+						if(config->ledtype == LEDTYPE_APA102)
+						{
+							dma_txpri->source = (uint32_t)&(config->eframe) + 3;
+							dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(4);
+						}
+
 						break;
 				}
+				UDMA->chis |= UDMA_CHANNEL(control->dma_txch);
+				UDMA->enaset |= UDMA_CHANNEL(control->dma_txch);
 			}
-			if((rgbdev->dma_txalt->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
+		}
+
+		if((dma_txalt->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
+		{
+			if(!control->xfercomplete)
 			{
-				switch(rgbdev->numled - rgbdev->xfer_c)
+				switch(config->lednum - control->xfer_c)
 				{
 					default:
-						rgbdev->dma_txalt->source = (uint32_t)(rgbdev->dataptr) + (rgbdev->xferbs - 1);
-						rgbdev->dma_txalt->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE(rgbdev->xferbs);
-						rgbdev->xfer_c++;
+						dma_txalt->source = (uint32_t)(control->dataptr) + (control->xferbs - 1);
+						dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
+						control->xfer_c++;
 						break;
 					case 1:
-						rgbdev->xfercomplete++;
+						control->xfercomplete++;
+						if(config->ledtype == LEDTYPE_APA102)
+						{
+							dma_txalt->source = (uint32_t)&(config->eframe) + 3;
+							dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(4);
+						}
 						break;
 				}
+				UDMA->chis |= UDMA_CHANNEL(control->dma_txch);
+				UDMA->enaset |= UDMA_CHANNEL(control->dma_txch);
 			}
 		}
 	}
 	
-	if(rgbdev->xfertype == XFER_BUFFER)
+	if(config->xfertype == XFERTYPE_BUFFER)
 	{
-		if(!rgbdev->xfercomplete)
-		{	
-			if((rgbdev->dma_txpri->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
-			{
-				switch(rgbdev->xferqty - rgbdev->xfer_c)
+		if((dma_txpri->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
+		{
+			if(!control->xfercomplete)
+			{	
+				switch(control->xferqty - control->xfer_c)
 				{
 					default:
-						rgbdev->xfer_c++;
-						rgbdev->dma_txpri->source = (uint32_t)(rgbdev->dataptr 
-													+ (rgbdev->xferbs * (rgbdev->xfer_c + 1)) 
+						control->xfer_c++;
+						dma_txpri->source = (uint32_t)(control->dataptr 
+													+ (control->xferbs * (control->xfer_c + 1)) 
 													- 1);
-						rgbdev->dma_txpri->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE((rgbdev->xferbs));
+						dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE((control->xferbs));
 						break;
 					case 2:
-						rgbdev->xfer_c++; 
-						rgbdev->dma_txpri->source = (uint32_t)(rgbdev->dataptr 
-													+ (rgbdev->xferbs * rgbdev->xfer_c) 
-													+ (rgbdev->xfersize % rgbdev->xferbs) 
+						control->xfer_c++; 
+						dma_txpri->source = (uint32_t)(control->dataptr 
+													+ (control->xferbs * control->xfer_c) 
+													+ (control->xfersize % control->xferbs) 
 													- 1);
-						rgbdev->dma_txpri->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE((rgbdev->xfersize % rgbdev->xferbs));
+						dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE((control->xfersize % control->xferbs));
 						break;
 					case 1:
-						rgbdev->xfercomplete++;
+						control->xfercomplete++;
+						if(config->ledtype == LEDTYPE_APA102)
+						{
+							dma_txpri->source = (uint32_t)&(config->eframe) + 3;
+							dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(4);
+						}
 						break;
 				}
+				UDMA->chis |= UDMA_CHANNEL(control->dma_txch);
+				UDMA->enaset |= UDMA_CHANNEL(control->dma_txch);
 			}
+		}
 
-			if((rgbdev->dma_txalt->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
-			{
-				switch(rgbdev->xferqty - rgbdev->xfer_c)
+		if((dma_txalt->control & 0x7) == UDMA_CHCTL_XFERMODE_STOP)
+		{
+			if(!control->xfercomplete)
+			{	
+				switch(control->xferqty - control->xfer_c)
 				{
 					default:
-						rgbdev->xfer_c++;
-						rgbdev->dma_txalt->source = (uint32_t)(rgbdev->dataptr 
-													+ (rgbdev->xferbs * (rgbdev->xfer_c + 1)) 
+						control->xfer_c++;
+						dma_txalt->source = (uint32_t)(control->dataptr 
+													+ (control->xferbs * (control->xfer_c + 1)) 
 													- 1);
-						rgbdev->dma_txalt->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE((rgbdev->xferbs));
+						dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE((control->xferbs));
 						break;
 					case 2:
-						rgbdev->xfer_c++;
-						rgbdev->dma_txalt->source = (uint32_t)(rgbdev->dataptr 
-													+ (rgbdev->xferbs * rgbdev->xfer_c) 
-													+ (rgbdev->xfersize % rgbdev->xferbs) 
+						control->xfer_c++;
+						dma_txalt->source = (uint32_t)(control->dataptr 
+													+ (control->xferbs * control->xfer_c) 
+													+ (control->xfersize % control->xferbs) 
 													- 1);
-						rgbdev->dma_txalt->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE((rgbdev->xfersize % rgbdev->xferbs));
+						dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE((control->xfersize % control->xferbs));
 						break;
 					case 1:
-						rgbdev->xfercomplete++;
+						control->xfercomplete++;
+						if(config->ledtype == LEDTYPE_APA102)
+						{
+							dma_txalt->source = (uint32_t)&(config->eframe) + 3;
+							dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(4);
+						}
 						break;
 				}
+				UDMA->chis |= UDMA_CHANNEL(control->dma_txch);
+				UDMA->enaset |= UDMA_CHANNEL(control->dma_txch);
 			}	
 		}
 	}
-	NVIC_ENABLE(rgbdev->ssiint);
+	NVIC_ENABLE(control->ssiint);
+}
+
+void SSI0IntHandler(void)
+{ 	
+	IntHandler(&ssi0_rgbdev);
 }
 
 void SSI1IntHandler(void)
 {	
-	
+	IntHandler(&ssi1_rgbdev);
 }
 
 
 static void RGBSingle(rgbdev_t *rgbdev)
-{
-	rgbdev->xfercomplete = 0;
-	rgbdev->xfer_c = 1;
+{	
+	rgbledctrl_t *control = &(rgbdev->control);
+	rgbledcfg_t *config = &(rgbdev->config);
+	volatile udmach_t *dma_txpri = control->dma_txpri;
+	volatile udmach_t *dma_txalt = control->dma_txalt;
 	
-	/*	UDMA TX configuration	*/
-	rgbdev->dma_txpri->source = (uint32_t)(rgbdev->dataptr) + 11; //(rgbdev->xferbs - 1);
-	rgbdev->dma_txpri->destination = (uint32_t)&(SSI0->dr);
-	rgbdev->dma_txpri->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE(rgbdev->xferbs);
 
-	switch(rgbdev->numled - rgbdev->xfer_c)
-	{			
-		case 0:
-			rgbdev->xfercomplete++;
+	control->xfercomplete = 0;
+	
+	switch(config->ledtype)
+	{
+		case LEDTYPE_WS2812B:
+			control->xfer_c = 1;
+			/*	UDMA TX configuration	*/
+			dma_txpri->source = (uint32_t)(control->dataptr) + (control->xferbs - 1);
+			dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
+
+			switch(rgbdev->config.lednum - control->xfer_c)
+			{			
+				case 0:
+					control->xfercomplete++;
+					break;
+				default:
+					dma_txalt->source = (uint32_t)(control->dataptr) + (control->xferbs - 1);
+					dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
+					break;
+			}
 			break;
-		default:
-			rgbdev->dma_txalt->source = (uint32_t)(rgbdev->dataptr) + (rgbdev->xferbs - 1);
-			rgbdev->dma_txalt->destination = (uint32_t)&(rgbdev->ssi->dr);
-			rgbdev->dma_txalt->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE(rgbdev->xferbs);
+
+	 	case LEDTYPE_APA102:
+	 		control->xfer_c = 0;
+	
+	 		dma_txpri->source = (uint32_t)&(config->sframe) + 3; //(control->xferbs - 1);
+			dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(4);
+
+			dma_txalt->source = (uint32_t)(control->dataptr) + (control->xferbs - 1);
+			dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
+			
 			break;
+
 	}
 }
 
 
 static void RGBBuffer(rgbdev_t *rgbdev)
 {
-	rgbdev->xfercomplete = 0;
-	rgbdev->xfer_c = 1;
-		
+	rgbledctrl_t *control = &(rgbdev->control);
+	rgbledcfg_t *config = &(rgbdev->config);
 
-	rgbdev->dma_txpri->destination = (uint32_t)&(rgbdev->ssi->dr);
-	rgbdev->dma_txalt->destination = (uint32_t)&(rgbdev->ssi->dr);
-			
-
-	switch(rgbdev->xferqty)
+	volatile udmach_t *dma_txpri = control->dma_txpri;
+	volatile udmach_t *dma_txalt = control->dma_txalt;
+	
+	control->xfercomplete = 0;
+	
+	switch(config->ledtype)
 	{
-		case 1: 
-			rgbdev->dma_txpri->source = (uint32_t)rgbdev->dataptr + ((rgbdev->xfersize % rgbdev->xferbs) - 1);
-			rgbdev->dma_txpri->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE((rgbdev->xfersize % rgbdev->xferbs));
-			rgbdev->xfercomplete++;
-			break;
-		case 2:
-			rgbdev->dma_txpri->source = (uint32_t)rgbdev->dataptr + (rgbdev->xferbs - 1);
-			rgbdev->dma_txpri->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE(rgbdev->xferbs);
-			
-			rgbdev->dma_txalt->source = (uint32_t)rgbdev->dataptr + rgbdev->xferbs + (rgbdev->xfersize % rgbdev->xferbs) - 1;
-			rgbdev->dma_txalt->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE((rgbdev->xfersize % rgbdev->xferbs));
-			break;
-		default:
-			rgbdev->dma_txpri->source = (uint32_t)rgbdev->dataptr + (rgbdev->xferbs - 1);
-			rgbdev->dma_txpri->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE(rgbdev->xferbs);
+		case LEDTYPE_WS2812B:
+			control->xfer_c = 0;
+			switch(control->xferqty)
+			{
+				case 1: 
+					dma_txpri->source = (uint32_t)control->dataptr + ((control->xfersize % control->xferbs) - 1);
+					dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE((control->xfersize % control->xferbs));
+					control->xfercomplete++;
+					break;
+				case 2:
+					dma_txpri->source = (uint32_t)control->dataptr + (control->xferbs - 1);
+					dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
+					
+					dma_txalt->source = (uint32_t)control->dataptr + control->xferbs + (control->xfersize % control->xferbs) - 1;
+					dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE((control->xfersize % control->xferbs));
+					break;
+				default:
+					dma_txpri->source = (uint32_t)control->dataptr + (control->xferbs - 1);
+					dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
 
-			rgbdev->dma_txalt->source = (uint32_t)rgbdev->dataptr + ((rgbdev->xferbs * 2) - 1);
-			rgbdev->dma_txalt->control = rgbdev->dma_txchcfg | UDMA_CHCTL_XFERSIZE(rgbdev->xferbs);
+					dma_txalt->source = (uint32_t)control->dataptr + ((control->xferbs * 2) - 1);
+					dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
+					break;
+			}
+			break;	
+	
+		case LEDTYPE_APA102:
+			dma_txpri->source = (uint32_t)&(config->sframe) + 3; //(control->xferbs - 1);
+			dma_txpri->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(4);
+	 	
+			control->xfer_c = 0;
+			switch(control->xferqty)
+			{
+				case 1: 
+					dma_txalt->source = (uint32_t)control->dataptr + ((control->xfersize % control->xferbs) - 1);
+					dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE((control->xfersize % control->xferbs));
+					//control->xfercomplete++;
+					break;
+				
+				default:
+					dma_txalt->source = (uint32_t)control->dataptr + (control->xferbs - 1);
+					dma_txalt->control = control->dma_txchcfg | UDMA_CHCTL_XFERSIZE(control->xferbs);
+					break;
+			}
 			break;
 	}
 }
 
 
-rgbdev_t *cc2538RGBInit(volatile ssi_t *ssi, uint32_t numled, uint8_t leddatasize, xfertype_t xfertype, void *data, uint32_t frequency)
+void rgbledTerminate(rgbdev_t *rgbdev)
+{
+	rgbledctrl_t *control = &(rgbdev->control);
+	rgbledcfg_t *config =  &(rgbdev->config);
+	
+	/* Disabling SSI */
+	NVIC_DISABLE(control->ssiint);
+	cc2538SSIMTerminate(control->ssi);
+	control->ssi = NULL;
+	control->ssiint = 0x0;
+
+	/* Disabling DMA */
+	UDMA->enaclr |= UDMA_CHANNEL(control->dma_txch);
+	UDMA->enaclr |= UDMA_CHANNEL(control->dma_rxch);
+	control->dma_txch = 0x0;
+	control->dma_rxch = 0x0;
+	control->dma_txchcfg = 0x0;
+	control->dma_rxchcfg = 0x0;
+	control->dma_txpri = NULL;
+	control->dma_txalt = NULL;
+	control->dma_rxpri = NULL;
+	control->dma_rxalt = NULL;
+	
+	/* Deallocating memory */
+	free(rgbdev->control.dataptr);
+	free(rgbdev->leds);
+
+	*((uint32_t *)config) = 0x0;
+	*((uint32_t *)control) = 0x0;
+}
+
+rgbdev_t *rgbledInit(uint32_t config, uint16_t lednum, uint32_t frequency)
+//rgbdev_t *cc2538RGBInit(volatile ssi_t *ssi, uint32_t lednum, uint8_t leddatasize, xfertype_t xfertype, void *data, uint32_t frequency)
 {
 	rgbdev_t *rgbdev;
-	if(ssi == SSI0)
-	{
-		rgbdev = &ssi0_rgbdev;
-		rgbdev->ssiint = INT_SSI0;
-		rgbdev->dma_txch = SSI0_TX_UDMACH;
-		rgbdev->dma_rxch = SSI0_RX_UDMACH;
-	}
-	else
+
+	if(config & RGBLEDCFG_XFERSSI_SSI1)
 	{
 		rgbdev = &ssi1_rgbdev;
-		rgbdev->ssiint = INT_SSI1;
-		rgbdev->dma_txch = SSI1_TX_UDMACH;
-		rgbdev->dma_rxch = SSI1_RX_UDMACH;
-	}
-	
-	rgbdev->ssi = ssi;
-	rgbdev->numled = numled;
-	rgbdev->leddatasize = leddatasize;
-	rgbdev->dataptr = (uint32_t *)data;
-	rgbdev->xfertype = xfertype;
-	rgbdev->xfersize = leddatasize * numled; /* BYTES */
-	rgbdev->dma_txpri = ((udmach_t *)&dmactrl[rgbdev->dma_txch]);
-	rgbdev->dma_txalt = ((udmach_t *)&dmactrl[32 + rgbdev->dma_txch]);
-	rgbdev->dma_rxpri = ((udmach_t *)&dmactrl[rgbdev->dma_rxch]);
-	rgbdev->dma_rxalt = ((udmach_t *)&dmactrl[32 + rgbdev->dma_rxch]);
-	rgbdev->dma_txchcfg = UDMA_CHCTL_DSTINC_NOINC |
-						UDMA_CHCTL_DSTSIZE_8BIT |
-						UDMA_CHCTL_SRCINC_8BIT |
-						UDMA_CHCTL_SRCSIZE_8BIT |
-						UDMA_CHCTL_ARBSIZE_4 | 
-						UDMA_CHCTL_XFERMODE_PINGPONG;
-
-	rgbdev->dma_rxchcfg = UDMA_CHCTL_DSTINC_NOINC |
-						UDMA_CHCTL_DSTSIZE_8BIT |
-						UDMA_CHCTL_SRCINC_NOINC |
-						UDMA_CHCTL_SRCSIZE_8BIT |
-						UDMA_CHCTL_ARBSIZE_4 | 
-						UDMA_CHCTL_XFERMODE_PINGPONG |
-						UDMA_CHCTL_XFERSIZE(1024);
-
-	if(xfertype == XFER_SINGLE)
-	{
-		rgbdev->xferqty = numled; /* ONE LED PER DMA TRANSFER */
-		rgbdev->xferbs = leddatasize;
+		rgbdev->control.ssi = SSI1;
+		rgbdev->control.ssiint = INT_SSI1;
+		rgbdev->control.dma_txch = SSI1_TX_UDMACH;
+		rgbdev->control.dma_rxch = SSI1_RX_UDMACH;
 	}
 	else
 	{
-		rgbdev->xferqty = 	(rgbdev->xfersize / 1024) + 1; /* BIGGER CHUNKS */
-		rgbdev->xferbs = 	rgbdev->xferqty > 0 ? 
-							(1024 / leddatasize) * leddatasize : 
-							rgbdev->xfersize;
+		rgbdev = &ssi0_rgbdev;
+		rgbdev->control.ssi = SSI0;
+		rgbdev->control.ssiint = INT_SSI0;
+		rgbdev->control.dma_txch = SSI0_TX_UDMACH;
+		rgbdev->control.dma_rxch = SSI0_RX_UDMACH;
 	}
 	
-	// cc2538SSIMInit(ssi, frequency, 
-	// 	SSI_CR0_FRF_MOTOROLASPIFORMAT | 
-	// 	SSI_CR0_SPH_CLOCKONSECONDEDGE | 
-	// 	SSI_CR0_DSS_8BITDATA,
-	// 	0x0, 
-	// 	SSI_IM_RXIM_FIFOHALFEMPTY, 
-	// 	SSI_DMATCL_TXDMAE_UDMAENABLE | 
-	// 	SSI_DMATCL_RXDMAE_UDMAENABLE);
-	// NVIC_ENABLE(rgbdev->ssiint);
-	// ssi->cr1 |= SSI_CR1_SSE_ENABLESSI;
+	*((uint32_t *)&rgbdev->config) = config;
+	rgbdev->config.lednum = lednum;
+	rgbdev->config.sframe = 0x0;
+	rgbdev->config.eframe = 0xFFFFFFFF;
+	rgbdev->config.leddatasize = 	rgbdev->config.ledtype == LEDTYPE_WS2812B ?
+									sizeof(ws2812bpixel_t) : 
+									sizeof(apa102pixel_t);
 
-	uint32_t maxbrate;
-    uint32_t prediv;
-    uint32_t clkrate;
-	
-	if(ssi == SSI0)
+	rgbdev->control.xfersize = rgbdev->config.leddatasize * lednum; /* BYTES */
+	rgbdev->control.dma_txpri = ((udmach_t *)&dmactrl[rgbdev->control.dma_txch]);
+	rgbdev->control.dma_txalt = ((udmach_t *)&dmactrl[32 + rgbdev->control.dma_txch]);
+	rgbdev->control.dma_rxpri = ((udmach_t *)&dmactrl[rgbdev->control.dma_rxch]);
+	rgbdev->control.dma_rxalt = ((udmach_t *)&dmactrl[32 + rgbdev->control.dma_rxch]);
+	rgbdev->control.dma_txchcfg = UDMA_CHCTL_DSTINC_NOINC |
+									UDMA_CHCTL_DSTSIZE_8BIT |
+									UDMA_CHCTL_SRCINC_8BIT |
+									UDMA_CHCTL_SRCSIZE_8BIT |
+									UDMA_CHCTL_ARBSIZE_4 | 
+									UDMA_CHCTL_XFERMODE_PINGPONG;
+
+	rgbdev->control.dma_rxchcfg = UDMA_CHCTL_DSTINC_NOINC |
+									UDMA_CHCTL_DSTSIZE_8BIT |
+									UDMA_CHCTL_SRCINC_NOINC |
+									UDMA_CHCTL_SRCSIZE_8BIT |
+									UDMA_CHCTL_ARBSIZE_4 | 
+									UDMA_CHCTL_XFERMODE_PINGPONG |
+									UDMA_CHCTL_XFERSIZE(1024);
+
+	if(rgbdev->config.xfertype == XFERTYPE_BUFFER)
 	{
-		SYS_CTRL->rcgcssi |= SYS_CTRL_RCGCSSI_SSI0_ENABLESSI0CLOCK;
-		SYS_CTRL->scgcssi |= SYS_CTRL_SCGCSSI_SSI0_ENABLESSI0CLOCK;
-		SYS_CTRL->dcgcssi |= SYS_CTRL_DCGCSSI_SSI0_ENABLESSI0CLOCK;
 
-		SSI0_PIN_OUT_CLK;
-		SSI0_PIN_OUT_TXD;
-		SSI0_PIN_OUT_FSS;
-		SSI0_PIN_IN_RXD;
-		SSI0_PINS_AFSEL;
+		rgbdev->control.xferqty = 	(rgbdev->control.xfersize / 1024) + 1; /* BIGGER CHUNKS */
+		rgbdev->control.xferbs = 	rgbdev->control.xferqty > 0 ? 
+							(1024 / rgbdev->config.leddatasize) * rgbdev->config.leddatasize : 
+							rgbdev->control.xfersize;
+		switch(rgbdev->config.ledtype)
+		{
+			case LEDTYPE_APA102:
+				rgbdev->control.dataptr = calloc(rgbdev->config.lednum, sizeof(apa102pixel_t));
+				rgbdev->leds = rgbdev->control.dataptr;
+				break;
+
+			case LEDTYPE_WS2812B:
+				rgbdev->control.dataptr = calloc(rgbdev->config.lednum, sizeof(ws2812bpixel_t));
+				rgbdev->leds = calloc(rgbdev->config.lednum, sizeof(led_t));
+				break;
+		}	
+	}
+	else
+	{
+		rgbdev->control.xferqty = lednum; /* One LED per DMA transfer. */
+		rgbdev->control.xferbs = rgbdev->config.leddatasize;
+		
+		switch(rgbdev->config.ledtype)
+		{
+			case LEDTYPE_APA102:
+				rgbdev->control.dataptr = calloc(1, sizeof(apa102pixel_t));
+				rgbdev->leds = rgbdev->control.dataptr;
+				break;
+
+			case LEDTYPE_WS2812B:
+				rgbdev->control.dataptr = calloc(1, sizeof(ws2812bpixel_t));
+				rgbdev->leds = calloc(1, sizeof(led_t));
+				break;
+		}	
+	}
+
+	/* Validate memory allocation and SSI availability. */
+	if((rgbdev->control.dataptr == NULL) || 
+		(rgbdev->leds == NULL) ||
+		(rgbdev->control.ssi->cr1 & SSI_CR1_SSE_ENABLESSI))
+	{
+		rgbledTerminate(rgbdev);
+		return NULL;
+	}
+
+	if(rgbdev->config.ledtype == LEDTYPE_WS2812B)
+	{	
+		uint16_t *memset = (uint16_t *)(rgbdev->control.dataptr);
+		uint32_t memsize = rgbdev->config.xfertype == XFERTYPE_BUFFER ?
+							(rgbdev->config.lednum * sizeof(ws2812bpixel_t)) :
+							sizeof(ws2812bpixel_t);
+
+		uint16_t c;
+		for(c = 0 ; c < (memsize / 6) ; c++)
+		{
+			*memset = 0x4992;
+			*(memset + 1) = 0x9224;
+			*(memset + 2) = 0x2449;
+			memset += 3;
+		}
+
+		switch(memsize % 6)
+		{
+			case 1:
+				*((uint8_t *)memset) = 0x92;
+				break;
+			case 2:
+				*memset = 0x4992;
+				break;
+			case 3:
+				*memset = 0x4992;
+				*((uint8_t *)(memset+1)) = 0x24;
+				break;
+			case 4:
+				*memset = 0x4992;
+				*(memset + 1) = 0x9224;
+				break;
+			case 5:
+				*memset = 0x4992;
+				*(memset + 1) = 0x9224;
+				*((uint8_t *)(memset+2)) = 0x49;
+				break;
+		}
 	}
 	
-	if(ssi == SSI1)
-	{
-		SYS_CTRL->rcgcssi |= SYS_CTRL_RCGCSSI_SSI1_ENABLESSI1CLOCK;
-		SYS_CTRL->scgcssi |= SYS_CTRL_SCGCSSI_SSI1_ENABLESSI1CLOCK;
-		SYS_CTRL->dcgcssi |= SYS_CTRL_DCGCSSI_SSI1_ENABLESSI1CLOCK;
 
-		SSI1_PIN_OUT_CLK;
-		SSI1_PIN_OUT_TXD;
-		SSI1_PIN_OUT_FSS;
-		SSI1_PIN_IN_RXD;
-		SSI1_PINS_AFSEL;
-	}
 
-	/* Configure SSI bitrate */
-    maxbrate = SYS_CTRL_SYSCLOCKFREQ / frequency;
-    prediv = 0;
-    do
-    {
-        prediv += 2;
-        clkrate = (maxbrate / prediv) - 1;
-    }
-    while(clkrate > 255);
-    
-   	/*	Master SSI mode	*/
-   	ssi->cr1 &= ~SSI_CR1_SSE_ENABLESSI;
-	ssi->cr1 = 0x0;
-	ssi->cc = 	SSI_CC_CS_PIOSC_BAUDBYSYSDIV | SSI_CC_CS_DSEN_SYSCLOCKBYSYSDIV;
-	ssi->cpsr = prediv;
-	ssi->cr0 = 	SSI_CR0_SCR_SET_CLOCKRATE(clkrate) | 
-				SSI_CR0_FRF_MOTOROLASPIFORMAT | 
-			 	SSI_CR0_SPH_CLOCKONSECONDEDGE | 
-			 	SSI_CR0_DSS_8BITDATA;
-	ssi->im = SSI_IM_RXIM_FIFOHALFEMPTY;
-	ssi->dmactl = SSI_DMATCL_TXDMAE_UDMAENABLE | 
-				  SSI_DMATCL_RXDMAE_UDMAENABLE;
-	NVIC_ENABLE(rgbdev->ssiint);
-	ssi->cr1 |= SSI_CR1_SSE_ENABLESSI;
+	cc2538SSIMInit(rgbdev->control.ssi, frequency, 
+		SSI_CR0_FRF_MOTOROLASPIFORMAT | 
+		SSI_CR0_SPH_CLOCKONSECONDEDGE |
+		SSI_CR0_SPO_CLOCKHIGHWHILEIDLE |  
+		SSI_CR0_DSS_8BITDATA,
+		0x0, 
+		SSI_IM_RXIM_FIFOHALFEMPTY, 
+		SSI_DMATCL_TXDMAE_UDMAENABLE | 
+		SSI_DMATCL_RXDMAE_UDMAENABLE);
+	NVIC_ENABLE(rgbdev->control.ssiint);
+	
 
 	cc2538DmaInit();
-	UDMA->prioclr |= UDMA_CHANNEL(rgbdev->dma_txch);
-	UDMA->prioclr |= UDMA_CHANNEL(rgbdev->dma_rxch);
-	UDMA->useburstclr |= UDMA_CHANNEL(rgbdev->dma_txch);
-	UDMA->useburstclr |= UDMA_CHANNEL(rgbdev->dma_rxch);
-	UDMA->reqmaskclr |= UDMA_CHANNEL(rgbdev->dma_txch);
-	UDMA->reqmaskclr |= UDMA_CHANNEL(rgbdev->dma_rxch);	
+	UDMA->prioclr |= UDMA_CHANNEL(rgbdev->control.dma_txch);
+	UDMA->prioclr |= UDMA_CHANNEL(rgbdev->control.dma_rxch);
+	UDMA->useburstclr |= UDMA_CHANNEL(rgbdev->control.dma_txch);
+	UDMA->useburstclr |= UDMA_CHANNEL(rgbdev->control.dma_rxch);
+	UDMA->reqmaskclr |= UDMA_CHANNEL(rgbdev->control.dma_txch);
+	UDMA->reqmaskclr |= UDMA_CHANNEL(rgbdev->control.dma_rxch);	
 
+	rgbdev->control.dma_rxpri->source = (uint32_t)&(rgbdev->control.ssi->dr);
+	rgbdev->control.dma_rxpri->destination = (uint32_t)&dummy_buf;
+	
+	rgbdev->control.dma_rxalt->source = (uint32_t)&(rgbdev->control.ssi->dr);
+	rgbdev->control.dma_rxalt->destination = (uint32_t)&dummy_buf;
+	
+	rgbdev->control.dma_txpri->destination = (uint32_t)&(rgbdev->control.ssi->dr);
+	rgbdev->control.dma_txalt->destination = (uint32_t)&(rgbdev->control.ssi->dr);
+							
 	return rgbdev;
 }
+
 		
-void cc2538RGBRender(rgbdev_t *rgbdev)
+void rgbledRender(rgbdev_t *rgbdev)
 {	
 	/*	Stop UDMA channels	*/
-	UDMA->enaclr |= UDMA_CHANNEL(rgbdev->dma_txch);
-	UDMA->enaclr |= UDMA_CHANNEL(rgbdev->dma_rxch);
-	UDMA->altclr |= UDMA_CHANNEL(rgbdev->dma_txch);
-	UDMA->altclr |= UDMA_CHANNEL(rgbdev->dma_rxch);
+	UDMA->enaclr |= UDMA_CHANNEL(rgbdev->control.dma_txch);
+	UDMA->enaclr |= UDMA_CHANNEL(rgbdev->control.dma_rxch);
+	UDMA->altclr |= UDMA_CHANNEL(rgbdev->control.dma_txch);
+	UDMA->altclr |= UDMA_CHANNEL(rgbdev->control.dma_rxch);
 	
 	/*	UDMA RX configuration	*/
-	rgbdev->dma_rxpri->source = (uint32_t)&(SSI0->dr);
-	rgbdev->dma_rxpri->destination = (uint32_t)&dummy_buf;
-	rgbdev->dma_rxpri->control = rgbdev->dma_rxchcfg;
+	rgbdev->control.dma_rxpri->control = rgbdev->control.dma_rxchcfg;
+	rgbdev->control.dma_rxalt->control = rgbdev->control.dma_rxchcfg;
+	rgbdev->control.counter = 0;
+	
+	if(rgbdev->config.ledtype == LEDTYPE_WS2812B)
+		ws2812bconv(rgbdev);
 
-	rgbdev->dma_rxalt->source = (uint32_t)&(SSI0->dr);
-	rgbdev->dma_rxalt->destination = (uint32_t)&dummy_buf;
-	rgbdev->dma_rxalt->control = rgbdev->dma_rxchcfg;
-
-
-	if (rgbdev->xfertype == XFER_SINGLE)
+	if (rgbdev->config.xfertype == XFERTYPE_SINGLE)
 	{
 		RGBSingle(rgbdev);
 	}
@@ -377,54 +576,36 @@ void cc2538RGBRender(rgbdev_t *rgbdev)
 	{
 		RGBBuffer(rgbdev);
 	}
-
 	
-	//rgbdev->ssi->dr = 0x9;
-	UDMA->enaset |= UDMA_CHANNEL(rgbdev->dma_txch);
-	UDMA->enaset |= UDMA_CHANNEL(rgbdev->dma_rxch);
-	
+	UDMA->enaset |= UDMA_CHANNEL(rgbdev->control.dma_txch);
+	UDMA->enaset |= UDMA_CHANNEL(rgbdev->control.dma_rxch);
 }
 
 
-void cc2538WS2812Bgetrgb(uint8_t R, uint8_t G, uint8_t B, void *data)
-{
-	uint32_t *ptrdata;
-	ptrdata = (uint32_t *)data;
-	*ptrdata = 	((R & (1 << 7)) ? 0x6 : 0x4) << 21 | 
-				((R & (1 << 6)) ? 0x6 : 0x4) << 18 | 
-				((R & (1 << 5)) ? 0x6 : 0x4) << 15 | 
-				((R & (1 << 4)) ? 0x6 : 0x4) << 12 | 
-				((R & (1 << 3)) ? 0x6 : 0x4) << 9 | 
-				((R & (1 << 2)) ? 0x6 : 0x4) << 6 | 
-				((R & (1 << 1)) ? 0x6 : 0x4) << 3 | 
-				((R & 1) ? 0x6 : 0x4);
-
-	ptrdata = (uint32_t *)((uint8_t *)data + 3);
-	*ptrdata = 	((G & (1 << 7)) ? 0x6 : 0x4) << 21 | 
-				((G & (1 << 6)) ? 0x6 : 0x4) << 18 | 
-				((G & (1 << 5)) ? 0x6 : 0x4) << 15 | 
-				((G & (1 << 4)) ? 0x6 : 0x4) << 12 | 
-				((G & (1 << 3)) ? 0x6 : 0x4) << 9 | 
-				((G & (1 << 2)) ? 0x6 : 0x4) << 6 | 
-				((G & (1 << 1)) ? 0x6 : 0x4) << 3 | 
-				((G & 1) ? 0x6 : 0x4);
-
-	ptrdata = (uint32_t *)((uint8_t *)data + 6);
-	*ptrdata = 	((B & (1 << 7)) ? 0x6 : 0x4) << 21 | 
-				((B & (1 << 6)) ? 0x6 : 0x4) << 18 | 
-				((B & (1 << 5)) ? 0x6 : 0x4) << 15 | 
-				((B & (1 << 4)) ? 0x6 : 0x4) << 12 | 
-				((B & (1 << 3)) ? 0x6 : 0x4) << 9 | 
-				((B & (1 << 2)) ? 0x6 : 0x4) << 6 | 
-				((B & (1 << 1)) ? 0x6 : 0x4) << 3 | 
-				((B & 1) ? 0x6 : 0x4);
-}
 
 
-void cc2538apa102(uint8_t R, uint8_t G, uint8_t B, void *data)
+void rgbledRenderColor(uint8_t r, uint8_t g, uint8_t b, rgbdev_t *rgbdev)
 {	
-	*((uint32_t *)data) = 0x0;
-	*((uint32_t *)data + 1) = (0xFF << 24) | (G << 16) | (B << 8) | R;
-	*((uint32_t *)data + 2) = 0xFFFFFFFF;
+	rgbledcfg_t *config = &(rgbdev->config);
+	
+	switch(config->ledtype)
+	{
+		case LEDTYPE_WS2812B:
+			((led_t *)(rgbdev->leds))[0].r = r;
+			((led_t *)(rgbdev->leds))[0].g = g;
+			((led_t *)(rgbdev->leds))[0].b = b;
+			break;
+
+		case LEDTYPE_APA102:
+			((apa102pixel_t *)(rgbdev->leds))[0].r = r;
+			((apa102pixel_t *)(rgbdev->leds))[0].g = g;
+			((apa102pixel_t *)(rgbdev->leds))[0].b = b;
+			break;
+
+	}
+	rgbledRender(rgbdev);
 
 }
+
+
+

@@ -38,7 +38,7 @@
 #include <openthread-core-config.h>
 #include <stdint.h>
 #include <openthread/config.h>
-#include <openthread/types.h>
+#include <openthread/instance.h>
 
 
 // Global OpenThread instance structure

@@ -153,6 +153,4 @@ void cc2538GPTimerPWMSetDuty(volatile gptimer_t *GPTIMER, gptimer_side_t SIDE, u
 void cc2538GPTimerPWMSetPeriod(volatile gptimer_t *GPTIMER, gptimer_side_t SIDE, uint32_t PERIOD /* ms */);
 void cc2538GPTimerPWMSetDutyPeriod(volatile gptimer_t *GPTIMER, gptimer_side_t SIDE, uint32_t PERIOD /* ms */, uint8_t DUTY /* 0% - 100% */);
 
-void cc2538UsleepInit(void);
-void cc2538Usleep(uint16_t usec);
 #endif

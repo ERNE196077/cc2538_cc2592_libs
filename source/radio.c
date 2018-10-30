@@ -33,17 +33,16 @@
  */
 
 #include <openthread/config.h>
-#include <openthread/openthread.h>
 #include <openthread/platform/alarm-milli.h>
 #include <openthread/platform/diag.h>
 #include <openthread/platform/radio.h>
 
-#include "../platform-cc2538.h"
+#include "platform-cc2538.h"
+#include "common/logging.hpp"
+#include "utils/code_utils.h"
 #include "../include/common.h"
 #include "../include/sys_ctrl.h"
 #include "../include/radio.h"
-#include "common/logging.hpp"
-#include "utils/code_utils.h"
 #include "../include/gpio.h"
 
 enum
@@ -193,12 +192,30 @@ void setTxPower(int8_t aTxPower)
 
 void otPlatRadioGetIeeeEui64(otInstance *aInstance, uint8_t *aIeeeEui64)
 {
-    uint8_t *eui64 = (uint8_t *)IEEE_EUI64;
+    // EUI64 is in a mixed-endian format.  Split in two halves, each 32-bit
+    // half is in little-endian format (machine endian).  However, the
+    // most significant part of the EUI64 comes first, so we can't cheat
+    // with a uint64_t!
+    //
+    // See https://e2e.ti.com/support/wireless_connectivity/low_power_rf_tools/f/155/p/307344/1072252
+
+    volatile uint32_t *eui64 = &HWREG(IEEE_EUI64);
     (void)aInstance;
 
-    for (uint8_t i = 0; i < OT_EXT_ADDRESS_SIZE; i++)
+    // Read first 32-bits
+    uint32_t part = eui64[0];
+    for (uint8_t i = 0; i < (OT_EXT_ADDRESS_SIZE / 2); i++)
     {
-        aIeeeEui64[i] = eui64[7 - i];
+        aIeeeEui64[3 - i] = part;
+        part >>= 8;
+    }
+
+    // Read the last 32-bits
+    part = eui64[1];
+    for (uint8_t i = 0; i < (OT_EXT_ADDRESS_SIZE / 2); i++)
+    {
+        aIeeeEui64[7 - i] = part;
+        part >>= 8;
     }
 }
 
@@ -243,10 +260,12 @@ void cc2538RadioInit(void)
     sReceiveFrame.mPsdu    = sReceivePsdu;
 
     // enable clock
+    // enable clock
     SYS_CTRL->rcgcrfc = SYS_CTRL_RCGCRFC_RFC0_ENABLERFC0CLOCK;
     SYS_CTRL->scgcrfc = SYS_CTRL_SCGCRFC_RFC0_ENABLERFC0CLOCK;
     SYS_CTRL->dcgcrfc = SYS_CTRL_DCGCRFC_RFC0_ENABLERFC0CLOCK;
     
+
     // Table 23-7.
     HWREG(RFCORE_XREG_AGCCTRL1)              = 0x15;
     HWREG(RFCORE_XREG_TXFILTCFG)             = 0x09;
@@ -259,16 +278,24 @@ void cc2538RadioInit(void)
 
     // default: SRCMATCH.SRC_MATCH_EN(1), SRCMATCH.AUTOPEND(1),
     // SRCMATCH.PEND_DATAREQ_ONLY(1), RFCORE_XREG_FRMCTRL1_PENDING_OR(0)
-    //#ifdef SETTINGS_CONFIG_RADIO_CC2592
-        // HWREG(CCTEST_OBSSEL2) = 0x80; 
-         HWREG(CCTEST_OBSSEL3) = 0x81;
-        // HWREG(RFCORE_XREG_RFC_OBS_CTRL0) = 0x6A;
-         HWREG(RFCORE_XREG_RFC_OBS_CTRL1) = 0x68;
-        
-        // GPIO_SET_ASGPIO(GPIO_D, GPIO_PIN_2);
-        // GPIO_SET_OUTPUT(GPIO_D, GPIO_PIN_2);
-        // GPIO_D->data |= GPIO_PIN_2;
-    //#endif
+
+    GPIO_SET_ASGPIO(GPIO_C, GPIO_PIN_2);
+    GPIO_SET_OUTPUT(GPIO_C, GPIO_PIN_2);
+    GPIO_OUTPUT_SET(GPIO_C, GPIO_PIN_2);
+
+    GPIO_SET_ASGPIO(GPIO_C, GPIO_PIN_3);
+    GPIO_SET_OUTPUT(GPIO_C, GPIO_PIN_3);
+    GPIO_OUTPUT_SET(GPIO_C, GPIO_PIN_3);
+     
+     HWREG(CCTEST_OBSSEL2) = 0x80; 
+     HWREG(RFCORE_XREG_RFC_OBS_CTRL0) = 0x6A;
+    
+     HWREG(CCTEST_OBSSEL3) = 0x81;
+     HWREG(RFCORE_XREG_RFC_OBS_CTRL1) = 0x68;
+
+    // GPIO_SET_ASGPIO(GPIO_D, GPIO_PIN_2);
+    // GPIO_SET_OUTPUT(GPIO_D, GPIO_PIN_2);
+    // GPIO_D->data |= GPIO_PIN_2;
 
     HWREG(RFCORE_XREG_TXPOWER) = sTxPowerTable[0].mTxPowerReg;
     sTxPower                   = sTxPowerTable[0].mTxPowerVal;
@@ -339,6 +366,30 @@ otError otPlatRadioReceive(otInstance *aInstance, uint8_t aChannel)
     return error;
 }
 
+static void setupTransmit(otRadioFrame *aFrame)
+{
+    int i;
+
+    // wait for current TX operation to complete, if any.
+    while (HWREG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)
+        ;
+
+    // flush txfifo
+    HWREG(RFCORE_SFR_RFST) = RFCORE_SFR_RFST_INSTR_FLUSHTX;
+    HWREG(RFCORE_SFR_RFST) = RFCORE_SFR_RFST_INSTR_FLUSHTX;
+
+    // frame length
+    HWREG(RFCORE_SFR_RFDATA) = aFrame->mLength;
+
+    // frame data
+    for (i = 0; i < aFrame->mLength; i++)
+    {
+        HWREG(RFCORE_SFR_RFDATA) = aFrame->mPsdu[i];
+    }
+
+    setChannel(aFrame->mChannel);
+}
+
 otError otPlatRadioTransmit(otInstance *aInstance, otRadioFrame *aFrame)
 {
     otError error = OT_ERROR_INVALID_STATE;
@@ -352,26 +403,60 @@ otError otPlatRadioTransmit(otInstance *aInstance, otRadioFrame *aFrame)
         sState         = OT_RADIO_STATE_TRANSMIT;
         sTransmitError = OT_ERROR_NONE;
 
-        while (HWREG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_TX_ACTIVE)
-            ;
+        setupTransmit(aFrame);
 
-        // flush txfifo
-        HWREG(RFCORE_SFR_RFST) = RFCORE_SFR_RFST_INSTR_FLUSHTX;
-        HWREG(RFCORE_SFR_RFST) = RFCORE_SFR_RFST_INSTR_FLUSHTX;
+        // Set up a counter to inform us if we get stuck.
+        i = 1000000;
 
-        // frame length
-        HWREG(RFCORE_SFR_RFDATA) = aFrame->mLength;
-
-        // frame data
-        for (i = 0; i < aFrame->mLength; i++)
+        // Wait for radio to enter receive state.
+        while ((HWREG(RFCORE_XREG_FSMSTAT1) & RFCORE_XREG_FSMSTAT1_RX_ACTIVE) == 0)
         {
-            HWREG(RFCORE_SFR_RFDATA) = aFrame->mPsdu[i];
+            // Count down the cycles, and emit a message if we get to zero.
+            // Ideally, we should never get there!
+            if (i)
+            {
+                i--;
+            }
+            else
+            {
+                otLogCritPlat(sInstance, "Radio is stuck!!! FSMSTAT0=0x%08x FSMSTAT1=0x%08x RFERRF=0x%08x",
+                              HWREG(RFCORE_XREG_FSMSTAT0), HWREG(RFCORE_XREG_FSMSTAT1), HWREG(RFCORE_SFR_RFERRF));
+                i = 1000000;
+            }
+
+            // Ensure we haven't overflowed the RX buffer in the mean time, as this
+            // will cause a deadlock here otherwise.  Similarly, if we see an aborted
+            // RX, handle that here too to prevent deadlock.
+            if (HWREG(RFCORE_SFR_RFERRF) & (RFCORE_SFR_RFERRF_RXOVERF | RFCORE_SFR_RFERRF_RXABO))
+            {
+                if (HWREG(RFCORE_SFR_RFERRF) & RFCORE_SFR_RFERRF_RXOVERF)
+                {
+                    otLogCritPlat(sInstance, "RX Buffer Overflow detected", NULL);
+                }
+
+                if (HWREG(RFCORE_SFR_RFERRF) & RFCORE_SFR_RFERRF_RXABO)
+                {
+                    otLogCritPlat(sInstance, "Aborted RX detected", NULL);
+                }
+
+                // Flush the RX buffer
+                HWREG(RFCORE_SFR_RFST) = RFCORE_SFR_RFST_INSTR_FLUSHRX;
+                HWREG(RFCORE_SFR_RFST) = RFCORE_SFR_RFST_INSTR_FLUSHRX;
+            }
+
+            // Check for idle state.  After flushing the RX buffer, we may wind up here.
+            if (!(HWREG(RFCORE_XREG_FSMSTAT1) & (RFCORE_XREG_FSMSTAT1_TX_ACTIVE | RFCORE_XREG_FSMSTAT1_RX_ACTIVE)))
+            {
+                otLogCritPlat(sInstance, "Idle state detected", NULL);
+
+                // In this case, the state of our driver mis-matches our state.  So force
+                // matters by clearing our channel variable and calling setChannel.  This
+                // should bring our radio into the RX state, which should allow us to go
+                // into TX.
+                sChannel = 0;
+                setupTransmit(aFrame);
+            }
         }
-
-        setChannel(aFrame->mChannel);
-
-        while ((HWREG(RFCORE_XREG_FSMSTAT1) & 1) == 0)
-            ;
 
         // wait for valid rssi
         while ((HWREG(RFCORE_XREG_RSSISTAT) & RFCORE_XREG_RSSISTAT_RSSI_VALID) == 0)
@@ -436,7 +521,7 @@ void otPlatRadioSetPromiscuous(otInstance *aInstance, bool aEnable)
     }
 }
 
-void readFrame(void)
+void readFrame(otInstance *aInstance)
 {
     uint8_t length;
     uint8_t crcCorr;
@@ -449,11 +534,12 @@ void readFrame(void)
     length = HWREG(RFCORE_SFR_RFDATA);
     otEXPECT(IEEE802154_MIN_LENGTH <= length && length <= IEEE802154_MAX_LENGTH);
 
-#if OPENTHREAD_ENABLE_RAW_LINK_API
-    // Timestamp
-    sReceiveFrame.mMsec = otPlatAlarmMilliGetNow();
-    sReceiveFrame.mUsec = 0; // Don't support microsecond timer for now.
-#endif
+    if (otPlatRadioGetPromiscuous(aInstance))
+    {
+        // Timestamp
+        sReceiveFrame.mInfo.mRxInfo.mMsec = otPlatAlarmMilliGetNow();
+        sReceiveFrame.mInfo.mRxInfo.mUsec = 0; // Don't support microsecond timer for now.
+    }
 
     // read psdu
     for (i = 0; i < length - 2; i++)
@@ -461,13 +547,13 @@ void readFrame(void)
         sReceiveFrame.mPsdu[i] = HWREG(RFCORE_SFR_RFDATA);
     }
 
-    sReceiveFrame.mRssi = (int8_t)HWREG(RFCORE_SFR_RFDATA) - CC2538_RSSI_OFFSET;
-    crcCorr             = HWREG(RFCORE_SFR_RFDATA);
+    sReceiveFrame.mInfo.mRxInfo.mRssi = (int8_t)HWREG(RFCORE_SFR_RFDATA) - CC2538_RSSI_OFFSET;
+    crcCorr                           = HWREG(RFCORE_SFR_RFDATA);
 
     if (crcCorr & CC2538_CRC_BIT_MASK)
     {
-        sReceiveFrame.mLength = length;
-        sReceiveFrame.mLqi    = crcCorr & CC2538_LQI_BIT_MASK;
+        sReceiveFrame.mLength            = length;
+        sReceiveFrame.mInfo.mRxInfo.mLqi = crcCorr & CC2538_LQI_BIT_MASK;
     }
     else
     {
@@ -492,7 +578,7 @@ exit:
 
 void cc2538RadioProcess(otInstance *aInstance)
 {
-    readFrame();
+    readFrame(aInstance);
 
     if ((sState == OT_RADIO_STATE_RECEIVE && sReceiveFrame.mLength > 0) ||
         (sState == OT_RADIO_STATE_TRANSMIT && sReceiveFrame.mLength > IEEE802154_ACK_LENGTH))

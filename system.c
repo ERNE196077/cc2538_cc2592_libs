@@ -36,7 +36,7 @@
 
 otInstance *sInstance;
 
-void PlatformInit(int argc, char *argv[])
+void otSysInit(int argc, char *argv[])
 {
 #if OPENTHREAD_CONFIG_ENABLE_DEBUG_UART
     cc2538DebugUartInit();
@@ -49,12 +49,12 @@ void PlatformInit(int argc, char *argv[])
     (void)argv;
 }
 
-bool PlatformPseudoResetWasRequested(void)
+bool otSysPseudoResetWasRequested(void)
 {
     return false;
 }
 
-void PlatformProcessDrivers(otInstance *aInstance)
+void otSysProcessDrivers(otInstance *aInstance)
 {
     sInstance = aInstance;
 
