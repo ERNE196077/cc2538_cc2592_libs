@@ -124,8 +124,6 @@ otError otPlatUartEnable(void)
     IOCMUX->ioc_pa0_over = IOC_OVERRIDE_DIS;
     GPIO_A->afsel |= GPIO_PIN_0;
 
-
-
     UART0->ctl = 0;
 
     // baud rate
