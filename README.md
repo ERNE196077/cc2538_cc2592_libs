@@ -99,3 +99,16 @@ state
 stop
 whitelist
 ```
+## Features
+These custom libraries provide a basic functionality for the cc2538_cc2592_devboard described [here](https://github.com/ERNE196077/cc2538_cc2592_devboard).
+
+The functions developed and functional are:
+* 32bit and 16bit general purpose timers
+* I2C driver (Tested with VCNL4100 sensors)
+* Basic SPI (SSI) driver functions
+* APA102 & WS2812B LED drivers using SPI (SSI) with the onboard UDMA
+* VCNL4100 sensor functions (via I2C)
+* PWM functionality using the general purpose timers
+* UDMA memory-to-memory basic driver
+* COAP control for RGB LEDs *in progress*
+
